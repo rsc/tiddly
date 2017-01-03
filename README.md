@@ -20,6 +20,9 @@ who created which tiddlers. The only access control is that the app.yaml here
 requires HTTPS and administrator login for all URLs, and as a “belt and suspenders” measure,
 the app itself also refuses to serve to non-admins, as checked by user.IsAdmin.
 
+See the "Re Authentication" comment in tiddly.go for information about
+making the server publicly read-only (it's not quite perfect).
+
 ## Data model
 
 The app stores the current tiddlers in Cloud Datastore as Tiddler entities.
