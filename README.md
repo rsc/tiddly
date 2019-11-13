@@ -40,7 +40,7 @@ tiddler content on demand.
 
 Create an Google App Engine standard app and deploy with
 
-	appcfg.py -A your-app -V your-version update .
+	gcloud --project=your-app app deploy
 
 Then visit https://your-app.appspot.com/. As noted above, only admins
 will have access to the content.

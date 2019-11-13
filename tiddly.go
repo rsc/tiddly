@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tiddly
+package main
 
 import (
 	"bytes"
@@ -10,8 +10,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"google.golang.org/appengine"
@@ -58,15 +60,6 @@ import (
 // in the wiki. It seems like the TiddlyWeb plugin or the core syncer module
 // would need changes to understand a new "read-only" mode.
 
-func init() {
-	http.HandleFunc("/", authCheck(main))
-	http.HandleFunc("/auth", authCheck(auth))
-	http.HandleFunc("/status", authCheck(status))
-	http.HandleFunc("/recipes/all/tiddlers/", authCheck(tiddler))
-	http.HandleFunc("/recipes/all/tiddlers.json", authCheck(tiddlerList))
-	http.HandleFunc("/bags/bag/tiddlers/", authCheck(deleteTiddler))
-}
-
 func authCheck(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !mustBeAdmin(w, r) {
@@ -87,12 +80,35 @@ func mustBeAdmin(w http.ResponseWriter, r *http.Request) bool {
 }
 
 type Tiddler struct {
-	Rev  int    `datastore:"Rev,noindex"`
-	Meta string `datastore:"Meta,noindex"`
-	Text string `datastore:"Text,noindex"`
+	Rev  int      `datastore:"Rev,noindex"`
+	Meta string   `datastore:"Meta,noindex"`
+	Text string   `datastore:"Text,noindex"`
+	Tags []string `datastore:"Tags",noindex`
 }
 
-func main(w http.ResponseWriter, r *http.Request) {
+func main() {
+	http.HandleFunc("/", authCheck(index))
+	http.HandleFunc("/auth", authCheck(auth))
+	http.HandleFunc("/status", authCheck(status))
+	http.HandleFunc("/recipes/all/tiddlers/", authCheck(tiddler))
+	http.HandleFunc("/recipes/all/tiddlers.json", authCheck(tiddlerList))
+	http.HandleFunc("/bags/bag/tiddlers/", authCheck(deleteTiddler))
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+		log.Printf("Defaulting to port %s", port)
+	}
+
+	appengine.Main()
+
+	log.Printf("Listening on port %s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func index(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "bad method", 405)
 		return
