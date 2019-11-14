@@ -77,16 +77,16 @@ propagate to the other.
 ## TiddlyWiki base image
 
 The TiddlyWiki code is stored in and served from index.html, which
-(as you can see by clicking on the Tools tab) is TiddlyWiki version 5.1.13.
+(as you can see by clicking on the Tools tab) is TiddlyWiki version 5.1.21.
 
 Plugins must be pre-baked into the TiddlyWiki file, not stored on the server
-as lazily loaded Tiddlers. The index.html in this directory is 5.1.13 with
+as lazily loaded Tiddlers. The index.html in this directory is 5.1.21 with
 the TiddlyWeb and Markdown plugins added. The TiddlyWeb plugin is
 required, so that index.html talks back to the server for content.
 
 The process for preparing a new index.html is:
 
-- Open tiddlywiki-5.1.13.html in your web browser.
+- Open tiddlywiki-5.1.21.html in your web browser.
 - Click the control panel (gear) icon.
 - Click the Plugins tab.
 - Click "Get more plugins".
