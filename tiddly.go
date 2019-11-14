@@ -83,7 +83,7 @@ type Tiddler struct {
 	Rev  int      `datastore:"Rev,noindex"`
 	Meta string   `datastore:"Meta,noindex"`
 	Text string   `datastore:"Text,noindex"`
-	Tags []string `datastore:"Tags",noindex`
+	Tags []string `datastore:"Tags,noindex"`
 }
 
 func main() {
