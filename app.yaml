@@ -1,10 +1,8 @@
-application: tiddlywiki-gae
-version: 2016-12-22
-runtime: go
-api_version: go1
+# go112+ doesn't support login: handlers
+runtime: go111
 
 handlers:
 - url: /.*
   login: admin
   secure: always
-  script: _go_app
+  script: auto
