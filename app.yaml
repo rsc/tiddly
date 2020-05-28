@@ -1,8 +1,7 @@
-# go112+ doesn't support login: handlers
+# cannot update to go113 because of https://stackoverflow.com/questions/56249339/what-is-the-correct-context-for-appengine-taskqueue-in-go112-standard-runtime
 runtime: go111
 
 handlers:
 - url: /.*
-  login: admin
   secure: always
   script: auto
