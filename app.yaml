@@ -1,5 +1,4 @@
-# go112+ doesn't support login: handlers
-runtime: go111
+runtime: go113
 
 handlers:
 - url: /.*

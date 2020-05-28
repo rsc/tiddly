@@ -21,44 +21,7 @@ import (
 	"google.golang.org/appengine/user"
 )
 
-// Re Authentication
-//
-// There are currently three redundant layers of authentication checks here.
-//
-// 1. app.yaml says 'login: admin'.
-// 2. The installed handlers are wrapped in authCheck during registration in func init.
-// 3. The write operations contain an extra mustBeAdmin check.
-//
-// The redundancy is mainly cautionary, to contain accidents.
-//
-// It should be possible to make a world-readable, admin-writable TiddlyWiki
-// by removing 1 and 2 and double-checking 3.
-//
-// If you remove 'login: admin' from app.yaml you can replace it with 'login: required',
-// requiring a login from any viewer, or you can delete the line entirely,
-// making it possible to fetch pages with no authentication.
-// In that case, users who do have write access (admins) will need to take the extra
-// step of logging in. One way to do this is to make the /auth URL require login
-// and have them start there when visiting, by listing that separately in app.yaml
-// before the default handler:
-//
-//	handlers:
-//	- url: /auth
-//	  login: admin
-//	  secure: always
-//	  script: _go_app
-//
-//	- url: /.*
-//	  secure: always
-//	  script: _go_app
-//
-// If you do this, then unauthenticated users will be able to read content,
-// and TiddlyWiki will let them edit content in their browser, but writes back
-// to the server will fail, producing yellow pop-up error messages in the
-// browser window. In general these are probably good, but this includes
-// attempts to update $:/StoryList, which happens as viewers click around
-// in the wiki. It seems like the TiddlyWeb plugin or the core syncer module
-// would need changes to understand a new "read-only" mode.
+var tiddlyIAP *iap
 
 func authCheck(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -70,13 +33,8 @@ func authCheck(f http.HandlerFunc) http.HandlerFunc {
 }
 
 func mustBeAdmin(w http.ResponseWriter, r *http.Request) bool {
-	ctx := appengine.NewContext(r)
-	u := user.Current(ctx)
-	if u == nil || !user.IsAdmin(ctx) {
-		http.Error(w, "permission denied", 403)
-		return false
-	}
-	return true
+	_, ok := tiddlyIAP.Email(r)
+	return ok
 }
 
 type Tiddler struct {
@@ -87,6 +45,12 @@ type Tiddler struct {
 }
 
 func main() {
+	var err error
+	tiddlyIAP, err = newIAP()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	http.HandleFunc("/", authCheck(index))
 	http.HandleFunc("/auth", authCheck(auth))
 	http.HandleFunc("/status", authCheck(status))

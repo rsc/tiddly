@@ -16,12 +16,14 @@ appropriately to the (relatively few) needed JSON API calls.
 The TiddlyWeb JSON API envisions a multiuser system in which different users have
 access to different sets of tiddlers. This Go server contains none of that:
 it assumes that all users have full access to everything, although it does record
-who created which tiddlers. The only access control is that the app.yaml here
-requires HTTPS and administrator login for all URLs, and as a “belt and suspenders” measure,
-the app itself also refuses to serve to non-admins, as checked by user.IsAdmin.
+who created which tiddlers.
 
-See the "Re Authentication" comment in tiddly.go for information about
-making the server publicly read-only (it's not quite perfect).
+Authentication is controlled by [Google IAP][iap] as a “belt and suspenders”
+measure. When deploying the application you will need to enable and [configure
+IAP][configure-iap] with the addresses you want to have access.
+
+[iap]: https://cloud.google.com/go/getting-started/authenticate-users-with-iap
+[configure-iap]: https://cloud.google.com/go/getting-started/authenticate-users-with-iap
 
 ## Data model
 
@@ -97,4 +99,3 @@ The process for preparing a new index.html is:
 - Open the downloaded file in the web browser.
 - Repeat, adding any more plugins.
 - Copy the final download to index.html.
-
