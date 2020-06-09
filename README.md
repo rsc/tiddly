@@ -23,7 +23,7 @@ measure. When deploying the application you will need to enable and [configure
 IAP][configure-iap] with the addresses you want to have access.
 
 [iap]: https://cloud.google.com/go/getting-started/authenticate-users-with-iap
-[configure-iap]: https://cloud.google.com/go/getting-started/authenticate-users-with-iap
+[configure-iap]: https://cloud.google.com/go/getting-started/authenticate-users-with-iap#enable-cloud-iap
 
 ## Data model
 
