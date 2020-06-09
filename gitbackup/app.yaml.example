@@ -1,0 +1,13 @@
+# cannot update to go113 because of https://stackoverflow.com/questions/56249339/what-is-the-correct-context-for-appengine-taskqueue-in-go112-standard-runtime
+runtime: go111
+service: gitbackup
+
+handlers:
+- url: /.*
+  secure: always
+  script: auto
+
+env_variables:
+  GITHTTP_USERNAME: "example"
+  GITHTTP_PASSWORD: "example"
+  GITHTTP_URL: "https://example.com/test"
