@@ -47,6 +47,13 @@ Create an Google App Engine standard app and deploy with
 Then visit https://your-app.appspot.com/. As noted above, only admins
 will have access to the content.
 
+## Backup
+
+There is an optional service called [`gitbackup`][gitbackup] that can backup
+the TiddlyWiki datastore to git periodically.
+
+[gitbackup]: https://github.com/philips/tiddly/tree/master/gitbackup
+
 ## Plugins
 
 TiddlyWiki supports extension through plugins. 
