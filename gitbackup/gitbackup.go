@@ -13,13 +13,12 @@ import (
 	"sort"
 	"time"
 
+	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
-
-	"github.com/go-git/go-git/v5"
 )
 
 const prefix = "/tmp/gitbackup"
@@ -33,6 +32,7 @@ type Tiddler struct {
 
 type GitDir struct {
 	repo git.Repository
+	wt   *git.Worktree
 	auth transport.AuthMethod
 }
 
@@ -81,21 +81,23 @@ func NewGitDir(url string, auth transport.AuthMethod, dir string) (*GitDir, erro
 		return nil, err
 	}
 
+	w, err := gc.repo.Worktree()
+	if err != nil {
+		return nil, err
+	}
+
+	gc.wt = w
+
 	return &gc, nil
 }
 
 func (g GitDir) Commit(ctx context.Context) error {
-	w, err := g.repo.Worktree()
+	err := g.wt.AddGlob("tiddlers/*")
 	if err != nil {
 		return err
 	}
 
-	err = w.AddGlob("tiddlers/")
-	if err != nil {
-		return err
-	}
-
-	status, err := w.Status()
+	status, err := g.wt.Status()
 	if err != nil {
 		return err
 	}
@@ -105,7 +107,7 @@ func (g GitDir) Commit(ctx context.Context) error {
 		return nil
 	}
 
-	co, err := w.Commit("updates", &git.CommitOptions{
+	co, err := g.wt.Commit("updates", &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  "TiddlyWiki Git Backup",
 			Email: "none@example.com",
@@ -191,8 +193,14 @@ func index(w http.ResponseWriter, r *http.Request) {
 	it := q.Run(ctx)
 
 	dir := filepath.Join(prefix, "tiddlers")
+	err := gd.wt.RemoveGlob("tiddlers/*")
+	if err != nil {
+		println("ERR", err.Error())
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	os.RemoveAll(dir)
-	err := os.MkdirAll(dir, 0755)
+	err = os.MkdirAll(dir, 0755)
 	if err != nil {
 		println("ERR", err.Error())
 		http.Error(w, err.Error(), 500)
@@ -231,6 +239,19 @@ func index(w http.ResponseWriter, r *http.Request) {
 		sort.Strings(mk)
 
 		for _, k := range mk {
+			if k == "tags" {
+				tags := js[k].([]interface{})
+				if len(tags) == 0 {
+					continue
+				}
+				var t string
+				sep := ""
+				for _, v := range tags {
+					t = t + sep + v.(string)
+					sep = " "
+				}
+				js[k] = t
+			}
 			buf.Write([]byte(fmt.Sprintf("%s: %v\n", k, js[k])))
 		}
 
