@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -30,74 +31,54 @@ type Tiddler struct {
 	Tags []string `datastore:"Tags,noindex"`
 }
 
-type GitDir struct {
+var gd struct {
 	repo git.Repository
 	wt   *git.Worktree
 	auth transport.AuthMethod
 }
 
-func NewGitDir(url string, auth transport.AuthMethod, dir string) (*GitDir, error) {
-	gc := GitDir{
-		auth: auth,
-	}
+var mux sync.Mutex
 
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		fmt.Printf("git clone %s %s --recursive\n", url, dir)
-		r, err := git.PlainClone(dir, false, &git.CloneOptions{
-			Auth:              gc.auth,
-			URL:               url,
-			RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		gc.repo = *r
-	} else {
-		r, err := git.PlainOpen(dir)
-		if err != nil {
-			return nil, err
-		}
-		gc.repo = *r
-
-		w, err := r.Worktree()
-		if err != nil {
-			return nil, err
-		}
-
-		err = w.Pull(&git.PullOptions{RemoteName: "origin"})
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	ref, err := gc.repo.Head()
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = gc.repo.CommitObject(ref.Hash())
-	if err != nil {
-		return nil, err
-	}
-
-	w, err := gc.repo.Worktree()
-	if err != nil {
-		return nil, err
-	}
-
-	gc.wt = w
-
-	return &gc, nil
-}
-
-func (g GitDir) Commit(ctx context.Context) error {
-	err := g.wt.AddGlob("tiddlers/*")
+func gitClone(url string, dir string) error {
+	fmt.Printf("git clone %s %s --recursive\n", url, dir)
+	r, err := git.PlainClone(dir, false, &git.CloneOptions{
+		Auth:              gd.auth,
+		URL:               url,
+		RecurseSubmodules: git.DefaultSubmoduleRecursionDepth,
+	})
 	if err != nil {
 		return err
 	}
 
-	status, err := g.wt.Status()
+	gd.repo = *r
+
+	ref, err := gd.repo.Head()
+	if err != nil {
+		return err
+	}
+
+	_, err = gd.repo.CommitObject(ref.Hash())
+	if err != nil {
+		return err
+	}
+
+	w, err := gd.repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	gd.wt = w
+
+	return nil
+}
+
+func gitCommit(ctx context.Context) error {
+	err := gd.wt.AddGlob("tiddlers/*")
+	if err != nil {
+		return err
+	}
+
+	status, err := gd.wt.Status()
 	if err != nil {
 		return err
 	}
@@ -107,7 +88,7 @@ func (g GitDir) Commit(ctx context.Context) error {
 		return nil
 	}
 
-	co, err := g.wt.Commit("updates", &git.CommitOptions{
+	co, err := gd.wt.Commit("updates", &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  "TiddlyWiki Git Backup",
 			Email: "none@example.com",
@@ -120,7 +101,7 @@ func (g GitDir) Commit(ctx context.Context) error {
 	}
 
 	fmt.Println(status)
-	obj, err := g.repo.CommitObject(co)
+	obj, err := gd.repo.CommitObject(co)
 	if err != nil {
 		return err
 	}
@@ -129,8 +110,8 @@ func (g GitDir) Commit(ctx context.Context) error {
 
 	fmt.Printf("git push\n")
 	// push using default options
-	err = g.repo.Push(&git.PushOptions{
-		Auth: g.auth,
+	err = gd.repo.Push(&git.PushOptions{
+		Auth: gd.auth,
 	})
 	if err != nil {
 		return err
@@ -138,8 +119,6 @@ func (g GitDir) Commit(ctx context.Context) error {
 
 	return nil
 }
-
-var gd *GitDir
 
 func main() {
 	var err error
@@ -152,12 +131,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	auth := githttp.BasicAuth{
+	gd.auth = &githttp.BasicAuth{
 		Username: gituser,
 		Password: gitpass,
 	}
 
-	gd, err = NewGitDir(giturl, &auth, prefix)
+	err = gitClone(giturl, prefix)
 	if err != nil {
 		panic(err)
 	}
@@ -183,6 +162,10 @@ func index(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad method", 405)
 		return
 	}
+
+	// only one go routine editing git repo at once
+	mux.Lock()
+	defer mux.Unlock()
 
 	ctx := appengine.NewContext(r)
 	q := datastore.NewQuery("Tiddler")
@@ -261,7 +244,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 		err = ioutil.WriteFile(filepath.Join(dir, fmt.Sprintf("%v.tid", js["title"])), buf.Bytes(), 0644)
 	}
 
-	gd.Commit(ctx)
+	gitCommit(ctx)
 
-	fmt.Fprintf(w, "OK\n", r.URL.Path)
+	fmt.Fprintf(w, "OK\n")
 }
