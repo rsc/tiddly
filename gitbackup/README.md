@@ -17,6 +17,8 @@ Copy `app.yaml.example` to `app.yaml` and configure the environment variables.
 - `GITHTTP_PASSWORD` usually a github personal access token secret key with `repo` access
 - `GITHTTP_URL` usually a HTTPS URL to a github repo
 
+If you want to publish your Tiddlers via a static site host like GitHub or Netlify [fork from this repo](https://github.com/philips/tiddlypublish)
+
 ### Deploy
 
 Deploy this service into the same Google Cloud project you deploy tiddly into.
