@@ -222,6 +222,9 @@ func index(w http.ResponseWriter, r *http.Request) {
 		sort.Strings(mk)
 
 		for _, k := range mk {
+			if k == "fields" {
+				continue
+			}
 			if k == "tags" {
 				tags := js[k].([]interface{})
 				if len(tags) == 0 {
