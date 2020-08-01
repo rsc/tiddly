@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tiddly
+package main
 
 import (
 	"bytes"
@@ -10,62 +10,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
-	"google.golang.org/appengine/user"
 )
 
-// Re Authentication
-//
-// There are currently three redundant layers of authentication checks here.
-//
-// 1. app.yaml says 'login: admin'.
-// 2. The installed handlers are wrapped in authCheck during registration in func init.
-// 3. The write operations contain an extra mustBeAdmin check.
-//
-// The redundancy is mainly cautionary, to contain accidents.
-//
-// It should be possible to make a world-readable, admin-writable TiddlyWiki
-// by removing 1 and 2 and double-checking 3.
-//
-// If you remove 'login: admin' from app.yaml you can replace it with 'login: required',
-// requiring a login from any viewer, or you can delete the line entirely,
-// making it possible to fetch pages with no authentication.
-// In that case, users who do have write access (admins) will need to take the extra
-// step of logging in. One way to do this is to make the /auth URL require login
-// and have them start there when visiting, by listing that separately in app.yaml
-// before the default handler:
-//
-//	handlers:
-//	- url: /auth
-//	  login: admin
-//	  secure: always
-//	  script: _go_app
-//
-//	- url: /.*
-//	  secure: always
-//	  script: _go_app
-//
-// If you do this, then unauthenticated users will be able to read content,
-// and TiddlyWiki will let them edit content in their browser, but writes back
-// to the server will fail, producing yellow pop-up error messages in the
-// browser window. In general these are probably good, but this includes
-// attempts to update $:/StoryList, which happens as viewers click around
-// in the wiki. It seems like the TiddlyWeb plugin or the core syncer module
-// would need changes to understand a new "read-only" mode.
-
-func init() {
-	http.HandleFunc("/", authCheck(main))
-	http.HandleFunc("/auth", authCheck(auth))
-	http.HandleFunc("/status", authCheck(status))
-	http.HandleFunc("/recipes/all/tiddlers/", authCheck(tiddler))
-	http.HandleFunc("/recipes/all/tiddlers.json", authCheck(tiddlerList))
-	http.HandleFunc("/bags/bag/tiddlers/", authCheck(deleteTiddler))
-}
+var tiddlyIAP *iap
 
 func authCheck(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -77,22 +32,48 @@ func authCheck(f http.HandlerFunc) http.HandlerFunc {
 }
 
 func mustBeAdmin(w http.ResponseWriter, r *http.Request) bool {
-	ctx := appengine.NewContext(r)
-	u := user.Current(ctx)
-	if u == nil || !user.IsAdmin(ctx) {
-		http.Error(w, "permission denied", 403)
+	if tiddlyIAP.Email(r) == "" {
 		return false
 	}
 	return true
 }
 
 type Tiddler struct {
-	Rev  int    `datastore:"Rev,noindex"`
-	Meta string `datastore:"Meta,noindex"`
-	Text string `datastore:"Text,noindex"`
+	Rev  int      `datastore:"Rev,noindex"`
+	Meta string   `datastore:"Meta,noindex"`
+	Text string   `datastore:"Text,noindex"`
+	Tags []string `datastore:"Tags,noindex"`
 }
 
-func main(w http.ResponseWriter, r *http.Request) {
+func main() {
+	var err error
+	tiddlyIAP, err = newIAP()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	http.HandleFunc("/", authCheck(index))
+	http.HandleFunc("/auth", authCheck(auth))
+	http.HandleFunc("/status", authCheck(status))
+	http.HandleFunc("/recipes/all/tiddlers/", authCheck(tiddler))
+	http.HandleFunc("/recipes/all/tiddlers.json", authCheck(tiddlerList))
+	http.HandleFunc("/bags/bag/tiddlers/", authCheck(deleteTiddler))
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+		log.Printf("Defaulting to port %s", port)
+	}
+
+	appengine.Main()
+
+	log.Printf("Listening on port %s", port)
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func index(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "bad method", 405)
 		return
@@ -106,12 +87,7 @@ func main(w http.ResponseWriter, r *http.Request) {
 }
 
 func auth(w http.ResponseWriter, r *http.Request) {
-	ctx := appengine.NewContext(r)
-	u := user.Current(ctx)
-	name := "GUEST"
-	if u != nil {
-		name = u.String()
-	}
+	name := tiddlyIAP.Email(r)
 	fmt.Fprintf(w, "<html>\nYou are logged in as %s.\n\n<a href=\"/\">Main page</a>.\n", name)
 }
 
@@ -120,13 +96,8 @@ func status(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad method", 405)
 		return
 	}
-	ctx := appengine.NewContext(r)
 	w.Header().Set("Content-Type", "application/json")
-	u := user.Current(ctx)
-	name := "GUEST"
-	if u != nil {
-		name = u.String()
-	}
+	name := tiddlyIAP.Email(r)
 	w.Write([]byte(`{"username": "` + name + `", "space": {"recipe": "all"}}`))
 }
 
